@@ -40,6 +40,8 @@
 
 #define TU_LOG_DRV(...)   TU_LOG(CFG_TUD_CDC_LOG_LEVEL, __VA_ARGS__)
 
+#define TUD_CDC_EP_BUFSIZE (TUD_OPT_HIGH_SPEED ? TU_MAX(CFG_TUD_CDC_FS_XFERSIZE, CFG_TUD_CDC_HS_XFERSIZE) : CFG_TUD_CDC_FS_XFERSIZE)
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -65,8 +67,8 @@ typedef struct {
 // Skip local EP buffer if dedicated hw FIFO is supported
   #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
 typedef struct {
-  TUD_EPBUF_DEF(epout, CFG_TUD_CDC_EP_BUFSIZE);
-  TUD_EPBUF_DEF(epin, CFG_TUD_CDC_EP_BUFSIZE);
+  TUD_EPBUF_DEF(epout, TUD_CDC_EP_BUFSIZE);
+  TUD_EPBUF_DEF(epin, TUD_CDC_EP_BUFSIZE);
 
   #if CFG_TUD_CDC_NOTIFY
   TUD_EPBUF_TYPE_DEF(cdc_notify_msg_t, epnotify);
@@ -74,7 +76,7 @@ typedef struct {
 } cdcd_epbuf_t;
 
 CFG_TUD_MEM_SECTION static cdcd_epbuf_t _cdcd_epbuf[CFG_TUD_CDC];
-#endif
+  #endif
 
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
@@ -267,14 +269,13 @@ void cdcd_init(void) {
     uint8_t *epin_buf  = _cdcd_epbuf[i].epin;
   #endif
 
-    tu_edpt_stream_init(&p_cdc->rx_stream, false, false, false, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, epout_buf,
-                        CFG_TUD_CDC_EP_BUFSIZE);
+    tu_edpt_stream_init(&p_cdc->rx_stream, false, false, false, p_cdc->rx_ff_buf, CFG_TUD_CDC_RX_BUFSIZE, epout_buf);
 
     // TX fifo can be configured to change to overwritable if not connected (DTR bit not set). Without DTR we do not
     // know if data is actually polled by terminal. This way the most current data is prioritized.
     // Default: is overwritable
     tu_edpt_stream_init(&p_cdc->tx_stream, false, true, _cdcd_cfg.tx_overwritabe_if_not_connected, p_cdc->tx_ff_buf,
-                        CFG_TUD_CDC_TX_BUFSIZE, epin_buf, CFG_TUD_CDC_EP_BUFSIZE);
+                        CFG_TUD_CDC_TX_BUFSIZE, epin_buf);
   }
 }
 
@@ -345,11 +346,17 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
         TU_ASSERT(TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, 0);
 
+  #if TUD_OPT_HIGH_SPEED
+        uint16_t xfer_len = (tud_speed_get() == TUSB_SPEED_HIGH ? CFG_TUD_CDC_HS_XFERSIZE : CFG_TUD_CDC_FS_XFERSIZE);
+  #else
+        uint16_t xfer_len = CFG_TUD_CDC_FS_XFERSIZE;
+  #endif
+
         TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
         if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
           tu_edpt_stream_t *stream_tx = &p_cdc->tx_stream;
 
-          tu_edpt_stream_open(stream_tx, rhport, desc_ep);
+          tu_edpt_stream_open(stream_tx, rhport, desc_ep, xfer_len);
           if (_cdcd_cfg.tx_persistent) {
             tu_edpt_stream_write_xfer(stream_tx); // flush pending data
           } else {
@@ -358,7 +365,7 @@ uint16_t cdcd_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, uint16
         } else {
           tu_edpt_stream_t *stream_rx = &p_cdc->rx_stream;
 
-          tu_edpt_stream_open(stream_rx, rhport, desc_ep);
+          tu_edpt_stream_open(stream_rx, rhport, desc_ep, xfer_len);
           if (!_cdcd_cfg.rx_persistent) {
             tu_edpt_stream_clear(stream_rx);
           }

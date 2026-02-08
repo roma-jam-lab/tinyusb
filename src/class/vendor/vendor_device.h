@@ -36,18 +36,35 @@ extern "C" {
 //--------------------------------------------------------------------+
 // Configuration
 //--------------------------------------------------------------------+
-#ifndef CFG_TUD_VENDOR_EPSIZE
-  #define CFG_TUD_VENDOR_EPSIZE 64
-#endif
 
 // RX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_RX_BUFSIZE
-  #define CFG_TUD_VENDOR_RX_BUFSIZE 64
+  #define CFG_TUD_VENDOR_RX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #endif
 
 // TX FIFO can be disabled by setting this value to 0
 #ifndef CFG_TUD_VENDOR_TX_BUFSIZE
-  #define CFG_TUD_VENDOR_TX_BUFSIZE 64
+  #define CFG_TUD_VENDOR_TX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#endif
+
+#if defined(CFG_TUD_VENDOR_EPSIZE)
+  #warning CFG_TUD_VENDOR_EPSIZE is obsolete, please use CFG_TUD_VENDOR_FS_XFERSIZE and CFG_TUD_VENDOR_HS_XFERSIZE instead
+#endif
+
+#ifndef CFG_TUD_VENDOR_FS_XFERSIZE
+  #if defined(CFG_TUD_VENDOR_EPSIZE)
+    #define CFG_TUD_VENDOR_FS_XFERSIZE   CFG_TUD_VENDOR_TX_BUFSIZE
+  #else
+    #define CFG_TUD_VENDOR_FS_XFERSIZE   64
+  #endif
+#endif
+
+#ifndef CFG_TUD_VENDOR_HS_XFERSIZE
+  #if defined(CFG_TUD_VENDOR_EPSIZE)
+    #define CFG_TUD_VENDOR_HS_XFERSIZE   CFG_TUD_VENDOR_TX_BUFSIZE
+  #else
+    #define CFG_TUD_VENDOR_HS_XFERSIZE   512
+  #endif
 #endif
 
 // Vendor is buffered (FIFO mode) if both TX and RX buffers are configured

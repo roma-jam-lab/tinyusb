@@ -44,13 +44,24 @@
   #define CFG_TUD_CDC_RX_BUFSIZE (TUD_OPT_HIGH_SPEED ? 512 : 64)
 #endif
 
-#if !defined(CFG_TUD_CDC_EP_BUFSIZE) && defined(CFG_TUD_CDC_EPSIZE)
-  #warning CFG_TUD_CDC_EPSIZE is renamed to CFG_TUD_CDC_EP_BUFSIZE, please update to use the new name
-  #define CFG_TUD_CDC_EP_BUFSIZE    CFG_TUD_CDC_EPSIZE
+#if defined(CFG_TUD_CDC_EP_BUFSIZE) || defined(CFG_TUD_CDC_EPSIZE)
+  #warning CFG_TUD_CDC_EP_BUFSIZE and CFG_TUD_CDC_EPSIZE are obsolete, please use CFG_TUD_CDC_FS_XFERSIZE and CFG_TUD_CDC_HS_XFERSIZE instead
 #endif
 
-#ifndef CFG_TUD_CDC_EP_BUFSIZE
-  #define CFG_TUD_CDC_EP_BUFSIZE    (TUD_OPT_HIGH_SPEED ? 512 : 64)
+#ifndef CFG_TUD_CDC_FS_XFERSIZE
+  #if defined(CFG_TUD_CDC_EP_BUFSIZE)
+    #define CFG_TUD_CDC_FS_XFERSIZE   CFG_TUD_CDC_EP_BUFSIZE
+  #else
+    #define CFG_TUD_CDC_FS_XFERSIZE   64
+  #endif
+#endif
+
+#ifndef CFG_TUD_CDC_HS_XFERSIZE
+  #if defined(CFG_TUD_CDC_EP_BUFSIZE)
+    #define CFG_TUD_CDC_HS_XFERSIZE   CFG_TUD_CDC_EP_BUFSIZE
+  #else
+    #define CFG_TUD_CDC_HS_XFERSIZE   512
+  #endif
 #endif
 
 #ifdef __cplusplus

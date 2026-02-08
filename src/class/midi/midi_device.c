@@ -36,6 +36,8 @@
 
 #include "midi_device.h"
 
+#define TUD_MIDI_EP_BUFSIZE (TUD_OPT_HIGH_SPEED ? TU_MAX(CFG_TUD_MIDI_FS_XFERSIZE, CFG_TUD_MIDI_HS_XFERSIZE) : CFG_TUD_MIDI_FS_XFERSIZE)
+
 //--------------------------------------------------------------------+
 // Weak stubs: invoked if no strong implementation is available
 //--------------------------------------------------------------------+
@@ -74,8 +76,8 @@ static midid_interface_t _midid_itf[CFG_TUD_MIDI];
   #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0
 // Endpoint Transfer buffer: not used if dedicated hw FIFO is available
 typedef struct {
-  TUD_EPBUF_DEF(epin, CFG_TUD_MIDI_EP_BUFSIZE);
-  TUD_EPBUF_DEF(epout, CFG_TUD_MIDI_EP_BUFSIZE);
+  TUD_EPBUF_DEF(epin, TUD_MIDI_EP_BUFSIZE);
+  TUD_EPBUF_DEF(epout, TUD_MIDI_EP_BUFSIZE);
 } midid_epbuf_t;
 
 CFG_TUD_MEM_SECTION static midid_epbuf_t _midid_epbuf[CFG_TUD_MIDI];
@@ -324,10 +326,10 @@ void midid_init(void) {
   #endif
 
     tu_edpt_stream_init(&p_midi->ep_stream.rx, false, false, false, p_midi->ep_stream.rx_ff_buf,
-                        CFG_TUD_MIDI_RX_BUFSIZE, epout_buf, CFG_TUD_MIDI_EP_BUFSIZE);
+                        CFG_TUD_MIDI_RX_BUFSIZE, epout_buf);
 
     tu_edpt_stream_init(&p_midi->ep_stream.tx, false, true, false, p_midi->ep_stream.tx_ff_buf, CFG_TUD_MIDI_TX_BUFSIZE,
-                        epin_buf, CFG_TUD_MIDI_EP_BUFSIZE);
+                        epin_buf);
   }
 }
 
@@ -406,13 +408,19 @@ uint16_t midid_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uint1
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
       const uint8_t ep_addr = ((const tusb_desc_endpoint_t *)p_desc)->bEndpointAddress;
 
+  #if TUD_OPT_HIGH_SPEED
+        uint16_t xfer_len = (tud_speed_get() == TUSB_SPEED_HIGH ? CFG_TUD_MIDI_HS_XFERSIZE : CFG_TUD_MIDI_FS_XFERSIZE);
+  #else
+        uint16_t xfer_len = CFG_TUD_MIDI_FS_XFERSIZE;
+  #endif
+
       if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN) {
         tu_edpt_stream_t *stream_tx = &p_midi->ep_stream.tx;
-        tu_edpt_stream_open(stream_tx, rhport, desc_ep);
+        tu_edpt_stream_open(stream_tx, rhport, desc_ep, xfer_len);
         tu_edpt_stream_clear(stream_tx);
       } else {
         tu_edpt_stream_t *stream_rx = &p_midi->ep_stream.rx;
-        tu_edpt_stream_open(stream_rx, rhport, desc_ep);
+        tu_edpt_stream_open(stream_rx, rhport, desc_ep, xfer_len);
         tu_edpt_stream_clear(stream_rx);
         TU_ASSERT(tu_edpt_stream_read_xfer(stream_rx) > 0, 0);         // prepare to receive data
       }
